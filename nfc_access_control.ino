@@ -1,4 +1,3 @@
-#include <MD5.h>
 #include <Adafruit_NFCShield_I2C.h>
 #include <Wire.h>
 #include <EEPROM.h>
@@ -17,6 +16,8 @@
 #define INIT_CLEAR 500
 #define CLEAR 501
 
+#define UUID_LENGTH 8
+
 /*****************************************************************************
 * Librerías externas
 ******************************************************************************/
@@ -25,8 +26,8 @@ Adafruit_NFCShield_I2C nfc(IRQ, RESET);
 /*****************************************************************************
 * Master TAG
 ******************************************************************************/
-char MASTER_TAG[] = "9fafcd5cf37c6dfb25b4fa30895eb594";
-char ALLOWED[16][33];
+char MASTER_TAG[] = "A4CA3ECF";
+char ALLOWED[16][UUID_LENGTH + 1];
 int ALLOWED_NUM;
 
 /*****************************************************************************
@@ -37,29 +38,25 @@ int greenLed = 12;
 int redLed = 13;
 long previousMillis = 0;
 long interval = 2000;
-char uid[12];
-char uid_add[12];
-char uid_conf[12];
+char uid[UUID_LENGTH + 1];
+char uid_aux[UUID_LENGTH + 1];
 char *puid = uid;
-char *puid_add = uid_add;
-char *puid_conf = uid_conf;
+char *puid_aux = uid_aux;
 int pr = 0;   // Puntero a la EEPROM para leer
 int pw = 0;   // Puntero a la EEPROM para escribir
 int i = 0;    // Índice de bucle
 int j = 0;    // Índice de bucle
 uint8_t id_count;
-unsigned char *hash;
-char *md5str;
 long learningMillis = 0;
-uint8_t *buff;
-char *uid_byte;
-char *tmp_uid;
+uint8_t *buff = NULL;
+char *uid_byte = NULL;
+char *tmp_uid = NULL;
 
 int mode = 0;
 
 void setup() {
 
-  Serial.begin(115200);
+  Serial.begin(9600);
   nfc.begin();
 
   uint32_t versiondata = nfc.getFirmwareVersion();
@@ -90,10 +87,6 @@ void setup() {
 }
 
 void loop() {
-  state();
-}
-
-void state() {
   switch (mode) {
   case INIT_NORMAL: // Inicia normal
     init_normal();
@@ -131,7 +124,16 @@ void state() {
   }
 }
 
-void init_learning() {}
+void init_learning() {
+
+  if (id_count < 16) {
+    Serial.print("Leído: "); Serial.println(uid);
+    Serial.println("Vuelve a colocarlo para añadir este TAG.");
+  } else {
+    Serial.println("Máximo número de IDs alcanzado.");
+    mode = INIT_NORMAL; // Vuelve a modo normal
+  }
+}
 
 void init_normal() {
   int pr = 0;   // Puntero a la EEPROM para leer
@@ -139,8 +141,14 @@ void init_normal() {
   int j = 0;
   ALLOWED_NUM = 0;
 
+  for (i = 0 ; i < UUID_LENGTH + 1 ; i++) {
+    uid[i] = 0;
+    uid_aux[i] = 0;
+  }
+
   digitalWrite(redLed, HIGH);
   digitalWrite(greenLed, HIGH);
+  digitalWrite(buzzer, HIGH);
 
   Serial.println("Actualizando IDs...");
 
@@ -150,18 +158,24 @@ void init_normal() {
   Serial.println("");
 
   for (i = 0 ; i < ALLOWED_NUM ; i++) {
-    for (j = 0 ; j < 32 ; j++) {
+    for (j = 0 ; j < UUID_LENGTH ; j++) {
       ALLOWED[i][j] = EEPROM.read(pr); pr++;
     }
-    ALLOWED[i][32] = '\0';
+    ALLOWED[i][UUID_LENGTH] = '\0';
   }
 }
 
 void mode_normal() {
 
-  if (readID(&puid) > 0) {
-    Serial.print("UID: "); Serial.println(uid);
-    checkID(uid);
+  if (puid != NULL) {
+    if (readID(&puid) > 0) {
+      Serial.print("UID: "); Serial.println(uid);
+      checkID(puid);
+    }
+    // free(uid);
+  } else {
+    Serial.println("Error de memoria en \"mode_normal\".");
+    mode = INIT_NORMAL; // Vuelve a modo normal
   }
 }
 
@@ -172,31 +186,37 @@ uint8_t readID(char **r_uid) {
   int ret = 0;
   int i = 0;
 
-  if (millis() - previousMillis > interval) {
+  if (r_uid != NULL) {
 
-    buff = (uint8_t *) calloc(12, sizeof(uint8_t));
+    if (millis() - previousMillis > interval) {
 
-    success = nfc.readPassiveTargetID(PN532_MIFARE_ISO14443A, &buff[0], &uidLength);
+      buff = (uint8_t *) calloc(UUID_LENGTH, sizeof(uint8_t));
 
-    if (success && uidLength == 4) {    // Si se ha leído correctamente una UID de 4 bytes
-      uid_byte = (char *) calloc(4, sizeof(char));
-      tmp_uid = (char *) calloc(12, sizeof(char));
-      for (i = 0 ; i < 4 ; i++) {     // Pasamos los 4 bytes a una cadena en HEX
+      success = nfc.readPassiveTargetID(PN532_MIFARE_ISO14443A, &buff[0], &uidLength);
 
-        snprintf(uid_byte, 3 , "%02X", buff[i]);
-        strncat(tmp_uid, uid_byte, 2);
+      if (success && uidLength == 4) {    // Si se ha leído correctamente una UID de 4 bytes
+        uid_byte = (char *) calloc(4, sizeof(char));
+        tmp_uid = (char *) calloc(12, sizeof(char));
+        for (i = 0 ; i < 4 ; i++) {     // Pasamos los 4 bytes a una cadena en HEX
+
+          snprintf(uid_byte, 3 , "%02X", buff[i]);
+          strncat(tmp_uid, uid_byte, 2);
+        }
+
+        strncpy(*r_uid, tmp_uid, UUID_LENGTH);
+        free(uid_byte);
+        free(tmp_uid);
+        ret = 1;
+        previousMillis = millis();
+      } else {
+        ret = 0;
       }
 
-      strncpy(*r_uid, tmp_uid, 8);
-      free(uid_byte);
-      free(tmp_uid);
-      ret = 1;
-      previousMillis = millis();
-    } else {
-      ret = 0;
+      free(buff);
     }
-
-    free(buff);
+  } else {
+    Serial.println("Error de memoria en \"readID\".");
+    mode = INIT_NORMAL; // Vuelve a modo normal
   }
 
   return ret;
@@ -207,33 +227,36 @@ void checkID(char *c_uid) {
   int found = 0;
   int i = 0;
 
-  unsigned char *hash = MD5::make_hash(c_uid);
-  char *md5str = MD5::make_digest(hash, 16);
+  if (c_uid != NULL) {
 
-  if (!strncmp(md5str, MASTER_TAG, 32)) {
-    found = 100;
-  } else {
-    for (i = 0 ; i < ALLOWED_NUM ; i++) {
+    if (!strncmp(c_uid, MASTER_TAG, UUID_LENGTH)) {
+      found = 100;
+    } else {
+      for (i = 0 ; i < ALLOWED_NUM ; i++) {
 
-      if (!strncmp(md5str, ALLOWED[i], 32)) {
-        found = 200;
+        if (!strncmp(c_uid, ALLOWED[i], UUID_LENGTH)) {
+          found = 200;
+        }
       }
     }
-  }
-  free(hash);
-  free(md5str);
 
-  switch (found) {
-  case 200:
-    success();
-    break;
-  case 100:
-    mode = INIT_MASTER;
-    break;
-  default:
-    fail();
+    switch (found) {
+    case 200:
+      success();
+      break;
+    case 100:
+      mode = INIT_MASTER;
+      break;
+    default:
+      fail();
+    }
+
+  } else {
+    Serial.println("Error de memoria en \"checkID\".");
+    mode = INIT_NORMAL; // Vuelve a modo normal
   }
 }
+
 
 void success() {
 
@@ -299,34 +322,39 @@ void mode_learning() {
   pw = 0;   // Puntero a la EEPROM para escribir
   i = 0;    // Índice de bucle
 
-  if (readID(&puid_conf) > 0) { // Se vuelve a leer para confirmar
-    if (!strncmp(uid_add, uid_conf, 8)) { // Si coincide se calcula el MD5
+  if (puid != NULL && puid_aux != NULL) {
+    if (readID(&puid_aux) > 0) { // Se vuelve a leer para confirmar
+      if ( puid_aux != NULL ) {
+        if (!strncmp(uid, uid_aux, UUID_LENGTH)) { // Si coincide se calcula el MD5
 
-      pw = (id_count * 32 ) + 1 ;
-      id_count++;
-      EEPROM.write(0, id_count);
+          pw = (id_count * UUID_LENGTH ) + 1 ;
+          id_count++;
+          EEPROM.write(0, id_count);
 
-      for (i = 0 ; i < 32 ; i++) {    // Se almacena el MD5 en EEPROM
-        EEPROM.write(pw, md5str[i]); pw++;
+          for (i = 0 ; i < UUID_LENGTH ; i++) {    // Se almacena el MD5 en EEPROM
+            EEPROM.write(pw, uid[i]); pw++;
+          }
+
+          Serial.println("Añadido TAG:");
+          Serial.print("UID: "); Serial.print(uid);
+          Serial.println("");
+          digitalWrite(redLed, HIGH);
+          digitalWrite(greenLed, LOW);
+          digitalWrite(buzzer, LOW);
+          delay(500);
+        }
+      } else { // Si no coincide se cancela la operación
+        Serial.println("Operación cancelada");
+        digitalWrite(redLed, LOW);
+        digitalWrite(greenLed, HIGH);
+        digitalWrite(buzzer, LOW);
+        delay(500);
       }
-
-      Serial.println("Añadido TAG:");
-      Serial.print("UID: "); Serial.print(uid_conf);
-      Serial.println("");
-      Serial.print("MD5: "); Serial.print(md5str);
-      Serial.println("");
-      digitalWrite(redLed, HIGH);
-      digitalWrite(greenLed, LOW);
-      digitalWrite(buzzer, LOW);
-      delay(500);
-    } else { // Si no coincide se cancela la operación
-      Serial.println("Operación cancelada");
-      digitalWrite(redLed, LOW);
-      digitalWrite(greenLed, HIGH);
-      digitalWrite(buzzer, LOW);
-      delay(500);
+      mode = INIT_NORMAL;
     }
-    mode = INIT_NORMAL;
+  } else {
+    Serial.println("Error de memoria en \"mode_learning\".");
+    mode = INIT_NORMAL; // Vuelve a modo normal
   }
 }
 
@@ -337,26 +365,32 @@ void init_master() {
   i = 0;    // Índice de bucle
   j = 0;    // Índice de bucle
 
-  char *id = (char *) calloc(33, sizeof(char));     // MD5 del TAG a almacenar
+  char *id = (char *) calloc(8, sizeof(char));     // MD5 del TAG a almacenar
 
-  Serial.println("MODO MASTER");
-  Serial.println("");
-
-  // El primer byte de la EEPROM indica el número de claves autorizadas.
-  id_count = EEPROM.read(pr); pr++;
-
-  Serial.print("Hay "); Serial.print(id_count); Serial.print(" IDs autorizadas.");
-  Serial.println("");
-
-  for (j = 0 ; j < id_count ; j++) {
-    for (i = 0 ; i < 32 ; i++) {
-      id[i] = EEPROM.read(pr); pr++;
-    }
-    id[32] = '\0';
-    Serial.print("MD5: "); Serial.print(id);
+  if (id != NULL) {
+    Serial.println("MODO MASTER");
     Serial.println("");
-  }
 
+    // El primer byte de la EEPROM indica el número de claves autorizadas.
+    id_count = EEPROM.read(pr); pr++;
+
+    Serial.print("Hay "); Serial.print(id_count); Serial.print(" IDs autorizadas.");
+    Serial.println("");
+
+    for (j = 0 ; j < id_count ; j++) {
+      for (i = 0 ; i < UUID_LENGTH ; i++) {
+        id[i] = EEPROM.read(pr); pr++;
+      }
+      id[UUID_LENGTH] = '\0';
+      Serial.print("UID: "); Serial.print(id);
+      Serial.println("");
+    }
+
+    free(id);
+  } else {
+    Serial.println("Error de memoria en \"init_master\".");
+    mode = INIT_NORMAL; // Vuelve a modo normal
+  }
 }
 
 void mode_master_feedback() {
@@ -378,29 +412,21 @@ void mode_master_feedback() {
 
 void mode_master() {
 
-  if (readID(&puid_add) > 0) {  // Se lee el TAG por primera vez
+  if (uid != NULL) {
 
-    hash = MD5::make_hash(uid_add);
-    md5str = MD5::make_digest(hash, 16);
+    if (readID(&puid) > 0) {  // Se lee el TAG por primera vez
 
-    if (!strcmp(md5str, MASTER_TAG)) { // Si es el MASTER TAG se prepara para borrar EEPROM
-
-      // Master TAG: Limpieza de EEPROM
-      mode = INIT_CLEAR;
-
-    } else {
-
-      // TAG normal, se añade a la lista de TAGs autorizados
-
-      if (id_count < 16) {
-        Serial.print("Leído: "); Serial.println(uid_add);
-        Serial.println("Vuelve a colocarlo para añadir este TAG.");
-        mode = INIT_LEARNING; // Modo aprendizaje
+      if (!strcmp(uid, MASTER_TAG)) { // Si es el MASTER TAG se prepara para borrar EEPROM
+        // Master TAG: Limpieza de EEPROM
+        mode = INIT_CLEAR;
       } else {
-        Serial.println("Ḿáximo número de IDs alcanzado.");
-        mode = INIT_NORMAL; // Vuelve a modo normal
+        // TAG normal, se añade a la lista de TAGs autorizados
+        mode = INIT_LEARNING;
       }
     }
+  } else {
+    Serial.println("Error de memoria en \"mode_master\".");
+    mode = INIT_NORMAL; // Vuelve a modo normal
   }
 }
 
@@ -427,18 +453,25 @@ void mode_clear_feedback() {
 
 void mode_clear() {
 
-  if (readID(&puid_conf) > 0) { // Se vuelve a leer para confirmar
-    if (!strncmp(uid_add, uid_conf, 8)) { // Limpiamos EEPROM
-      Serial.println("Limpiando EEPROM...");
+  if (puid != NULL && puid_aux != NULL) {
 
-      for (int i = 0; i < 512; i++)
-        EEPROM.write(i, 0);
+    if (readID(&puid_aux) > 0) { // Se vuelve a leer para confirmar
 
-      Serial.println("¡EEPROM Borrada!");
-      mode = INIT_NORMAL;
-    } else {
-      Serial.println("Operación cancelada");
+      if (!strncmp(uid, uid_aux, UUID_LENGTH)) { // Limpiamos EEPROM
+        Serial.println("Limpiando EEPROM...");
+
+        for (int i = 0; i < 512; i++)
+          EEPROM.write(i, 0);
+
+        Serial.println("¡EEPROM Borrada!");
+      } else {
+        Serial.println("Operación cancelada");
+      }
+
       mode = INIT_NORMAL;
     }
+  } else {
+    Serial.println("Error de memoria en \"mode_clear\".");
+    mode = INIT_NORMAL; // Vuelve a modo normal
   }
 }
