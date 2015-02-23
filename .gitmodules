@@ -1,3 +1,6 @@
 [submodule "libraries/Adafruit_NFCShield_I2C"]
 	path = libraries/Adafruit_NFCShield_I2C
 	url = git@github.com:adafruit/Adafruit_NFCShield_I2C.git
+[submodule "libraries/xbee-arduino"]
+	path = libraries/xbee-arduino
+	url = https://code.google.com/p/xbee-arduino
