@@ -4,3 +4,6 @@
 [submodule "libraries/xbee-arduino"]
 	path = libraries/xbee-arduino
 	url = https://code.google.com/p/xbee-arduino
+[submodule "libraries/microcap"]
+	path = libraries/microcap
+	url = https://github.com/1248/microcoap
