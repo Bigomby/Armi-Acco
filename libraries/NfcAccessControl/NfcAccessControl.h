@@ -8,13 +8,19 @@
 #define AUTHORIZED          1
 #define MASTER_ACCESS       2
 
+#define LOCAL_AUTH          0
+#define REMOTE_WIFI_AUTH    1
+#define REMOTE_XBEE_AUTH    2
+
 #include <Arduino.h>
+#include <SoftwareSerial.h>
 #include <EEPROM.h>
+#include <XBee.h>
 
 class NfcAccessControl {
 
 public:
-	NfcAccessControl();
+	NfcAccessControl(uint8_t auth_mode = LOCAL_AUTH);
 	void addUid(char *uid);
 	uint8_t checkUid(char *uid);
 	void clearUids();
@@ -22,9 +28,17 @@ public:
 	char *getUid(uint8_t index);
 
 private:
+	uint8_t auth_mode;
 	uint8_t allowed_tags_count;
+	uint8_t *payload;
 	char allowed_tags[MAX_AUTHORIZED_TAGS][UID_LENGTH];
+	XBee xbee;
+	SoftwareSerial *SoftSerial;
 
+	uint8_t remoteAuth(char *uid);
+	uint8_t localAuth(char *uid);
+	uint8_t remoteXbeeAuth(char *uid);
+	uint8_t remoteWifiAuth(char *uid);
 	void loadUids();
 };
 
