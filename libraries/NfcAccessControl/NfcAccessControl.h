@@ -3,7 +3,7 @@
 
 #define MASTER_TAG "A4CA3ECF"       // Set to your UID MASTER TAG
 #define UID_LENGTH          8       // 8 chars for a 4 bytes UID
-#define MAX_AUTHORIZED_TAGS 16      // Maximum number of athorized TAGs
+#define MAX_AUTHORIZED_TAGS 8      // Maximum number of athorized TAGs
 #define UNAUTHORIZED        0
 #define AUTHORIZED          1
 #define MASTER_ACCESS       2
@@ -16,11 +16,12 @@
 #include <SoftwareSerial.h>
 #include <EEPROM.h>
 #include <XBee.h>
+#include <coap.h>
 
 class NfcAccessControl {
 
 public:
-	NfcAccessControl(uint8_t auth_mode = LOCAL_AUTH);
+	void init(uint8_t auth_mode = LOCAL_AUTH);
 	void addUid(char *uid);
 	uint8_t checkUid(char *uid);
 	void clearUids();
@@ -30,16 +31,16 @@ public:
 private:
 	uint8_t auth_mode;
 	uint8_t allowed_tags_count;
-	uint8_t *payload;
 	char allowed_tags[MAX_AUTHORIZED_TAGS][UID_LENGTH];
-	XBee xbee;
 	SoftwareSerial *SoftSerial;
+	XBee xbee;
 
 	uint8_t remoteAuth(char *uid);
 	uint8_t localAuth(char *uid);
 	uint8_t remoteXbeeAuth(char *uid);
 	uint8_t remoteWifiAuth(char *uid);
 	void loadUids();
+	uint8_t memErr();
 };
 
 #endif

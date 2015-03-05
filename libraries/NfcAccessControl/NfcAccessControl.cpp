@@ -4,25 +4,27 @@
  * Creating a NfcAccessControl object loads all the allowed UIDs stored in
  * the EEPROM.
  *****************************************************************************/
-NfcAccessControl::NfcAccessControl(uint8_t auth_mode) {
+void NfcAccessControl::init(uint8_t auth_mode) {
 
 	this->auth_mode = auth_mode;
 
 	switch (auth_mode) {
-	case REMOTE_WIFI_AUTH:
-		Serial.println("MODO WIFI");
+	case REMOTE_WIFI_AUTH: {
 		// TODO
 		break;
-	case REMOTE_XBEE_AUTH:
-		Serial.println("MODO XBEE");
+	}
+	case REMOTE_XBEE_AUTH: {
 		SoftSerial = new SoftwareSerial(8, 9);
 		SoftSerial->begin(9600);
 		xbee = XBee();
 		xbee.setSerial(*SoftSerial);
+		//coap_setup();
+		//endpoint_setup();
 		break;
-	default:
-		Serial.println("MODO LOCAL");
+	}
+	default: {
 		loadUids();
+	}
 	}
 }
 
@@ -44,7 +46,7 @@ void NfcAccessControl::addUid(char *uid) {
 		loadUids();
 
 	} else {
-		Serial.println("memory error at addUid()");
+		memErr();
 	}
 }
 
@@ -58,8 +60,6 @@ void NfcAccessControl::addUid(char *uid) {
 uint8_t NfcAccessControl::checkUid(char *uid) {
 
 	uint8_t access = UNAUTHORIZED;
-
-	Serial.print("Autorizando mediante: "); Serial.println(auth_mode);
 
 	switch (auth_mode) {
 	case REMOTE_WIFI_AUTH:
@@ -137,7 +137,7 @@ uint8_t NfcAccessControl::localAuth(char *uid) {
 			}
 		}
 	} else {
-		Serial.println("memory error at localAuth()");
+		memErr();
 	}
 
 	return access;
@@ -145,42 +145,71 @@ uint8_t NfcAccessControl::localAuth(char *uid) {
 
 uint8_t NfcAccessControl::remoteXbeeAuth(char *uid) {
 
-	uint8_t *payload = NULL;
+	// XBEE
 	XBeeAddress64 addr64 = XBeeAddress64(0x0013A200, 0x40B96ED1);
 	ZBTxStatusResponse txStatus = ZBTxStatusResponse();
 
-	payload = (uint8_t *) calloc (UID_LENGTH, sizeof(uint8_t));
-	memcpy(payload, uid, UID_LENGTH);
-	ZBTxRequest zbTx = ZBTxRequest(addr64, payload, UID_LENGTH);
+	// CoaP
+	uint8_t packetbuf[24];
+	size_t rsplen = sizeof(packetbuf);
+	int rc;
+	coap_packet_t req;
 
-	Serial.println("Checking...");
-	xbee.send(zbTx);
+	if (packetbuf != NULL) {
 
-	if (xbee.readPacket(100)) {
+		req.hdr.ver = 0x01;
+		req.hdr.t = COAP_TYPE_NONCON;
+		req.hdr.tkl = 0x00;
+		req.hdr.code = COAP_METHOD_POST;
+		req.hdr.id[0] = 0x00;
+		req.hdr.id[1] = 0x00;
 
-		if (xbee.getResponse().getApiId() == ZB_TX_STATUS_RESPONSE) {
-			xbee.getResponse().getZBTxStatusResponse(txStatus);
+		req.payload.len = UID_LENGTH;
+		const uint8_t *payload = (uint8_t*) uid;
+		req.payload.p = payload;
+		req.tok.len = 0x00;
+		req.numopts = 0x00;
 
-			if (txStatus.getDeliveryStatus() == SUCCESS) {
-				Serial.println("success.  time to celebrate");
+		if (0 != (rc = coap_build(packetbuf, &rsplen, &req))) {
+			Serial.print("rc=");
+			Serial.println(rc, DEC);
+		} else {
+			ZBTxRequest zbTx = ZBTxRequest(addr64, packetbuf, rsplen);
+			Serial.println("Sending...");
+			xbee.send(zbTx);
 
+			if (xbee.readPacket(100)) {
+
+				if (xbee.getResponse().getApiId() == ZB_TX_STATUS_RESPONSE) {
+					xbee.getResponse().getZBTxStatusResponse(txStatus);
+
+					if (txStatus.getDeliveryStatus() == SUCCESS) {
+						Serial.println("Success");
+
+					} else {
+						Serial.println("Error");
+
+					}
+				}
+			} else if (xbee.getResponse().isError()) {
+				Serial.print("Error code: ");
+				Serial.println(xbee.getResponse().getErrorCode());
 			} else {
-				Serial.println("The remote XBee did not receive our packet. is it powered on?");
-
+				Serial.println("Local error");
 			}
 		}
-	} else if (xbee.getResponse().isError()) {
-		Serial.print("Error reading packet.  Error code: ");
-		Serial.println(xbee.getResponse().getErrorCode());
 	} else {
-		Serial.println("local XBee did not provide a timely TX Status Response -- should not happen");
+		memErr();
 	}
 
-	free(payload);
 	return 0;
 }
 
 uint8_t NfcAccessControl::remoteWifiAuth(char *uid) {
 
 	return 0;
+}
+
+uint8_t NfcAccessControl::memErr() {
+	Serial.println("Memmory error");
 }

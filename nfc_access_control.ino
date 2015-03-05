@@ -1,3 +1,4 @@
+#include <coap.h>
 #include <SoftwareSerial.h>
 #include <XBee.h>
 #include <EEPROM.h>
@@ -26,7 +27,7 @@
 * External libraries
 ******************************************************************************/
 Adafruit_NFCShield_I2C nfc(IRQ, RESET);
-NfcAccessControl access(REMOTE_XBEE_AUTH);
+NfcAccessControl access;
 
 /*****************************************************************************
 * Globals
@@ -68,6 +69,8 @@ void setup() {
 	nfc.setPassiveActivationRetries(1);
 
 	nfc.SAMConfig();
+
+	access.init(REMOTE_XBEE_AUTH);
 
 	pinMode(11, OUTPUT);
 	pinMode(12, OUTPUT);
@@ -158,7 +161,7 @@ uint8_t readUid(char **r_uid) {
 			free(buff);
 		}
 	} else {
-		Serial.println("memory error at readUid()");
+		memErr();
 		mode = INIT_NORMAL;
 	}
 
@@ -200,7 +203,6 @@ void init_normal() {
 	digitalWrite(greenLed, HIGH);
 	digitalWrite(buzzer, HIGH);
 
-	Serial.print("There are ");
 	Serial.print(access.getAllowedTagsCount());
 	Serial.print(" allowed TAGs.");
 	Serial.println("");
@@ -217,7 +219,7 @@ void mode_normal() {
 			checkUid();
 		}
 	} else {
-		Serial.println("memory error at mode_normal()");
+		memErr();
 		mode = INIT_NORMAL;
 	}
 }
@@ -233,10 +235,10 @@ void init_master() {
 
 	uint8_t allowed_tags_count = access.getAllowedTagsCount();
 
-	Serial.println("MODE: MASTER");
+	Serial.println("MASTER");
 	Serial.println("");
 
-	Serial.print("There are "); Serial.print(allowed_tags_count); Serial.print(" allowed TAGs.");
+	Serial.print(allowed_tags_count); Serial.print(" allowed TAGs.");
 	Serial.println("");
 
 	for (uint8_t i = 0 ; i < allowed_tags_count ; i++) {
@@ -266,7 +268,7 @@ void mode_master() {
 			}
 		}
 	} else {
-		Serial.println("memory error at mode_master()");
+		memErr();
 		mode = INIT_NORMAL;
 	}
 }
@@ -297,7 +299,7 @@ void init_learn() {
 	if (access.getAllowedTagsCount() < MAX_AUTHORIZED_TAGS) {
 		strncpy(suid, uid, UID_LENGTH);
 		Serial.print("UID: "); Serial.println(suid);
-		Serial.println("Put this TAG again to add to the allowed TAGs list");
+		Serial.println("Learning...");
 	} else {
 		Serial.println("Allowed TAGs limit reached.");
 		mode = INIT_NORMAL; // Vuelve a modo normal
@@ -334,12 +336,12 @@ void mode_learn() {
 				}
 				mode = INIT_NORMAL;
 			} else {
-				Serial.println("memory error at mode_learn()");
+				memErr();
 				mode = INIT_NORMAL;
 			}
 		}
 	}  else {
-		Serial.println("memory error at mode_learn()");
+		memErr();
 		mode = INIT_NORMAL;
 	}
 }
@@ -366,7 +368,7 @@ void mode_learn_feedback() {
  *****************************************************************************/
 
 void init_clear() {
-	Serial.println("Put the MASTER TAG again to clear the allowed TAGs list.");
+	Serial.println("Clearing...");
 }
 
 void mode_clear() {
@@ -384,7 +386,7 @@ void mode_clear() {
 			mode = INIT_NORMAL;
 		}
 	} else {
-		Serial.println("memory error at mode_clear()");
+		memErr();
 		mode = INIT_NORMAL;
 	}
 }
@@ -450,4 +452,8 @@ void fail() {
 	delay(100);
 	digitalWrite(redLed, HIGH);
 	digitalWrite(buzzer, HIGH);
+}
+
+void memErr() {
+	Serial.println("Memory Error");
 }
