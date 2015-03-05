@@ -7,6 +7,6 @@
 [submodule "libraries/microcap"]
 	path = libraries/microcap
 	url = https://github.com/1248/microcoap
-[submodule "libraries/Arduino-CoaP"]
-	path = libraries/Arduino-CoaP
-	url = https://github.com/dgiannakop/Arduino-CoAP.git
+[submodule "libraries/microcoap"]
+	path = libraries/microcoap
+	url = https://github.com/1248/microcoap.git
