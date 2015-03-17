@@ -2,7 +2,7 @@
 #include <SoftwareSerial.h>
 #include <XBee.h>
 #include <EEPROM.h>
-#include <Adafruit_NFCShield_I2C.h>
+#include <Adafruit_PN532.h>
 #include <Wire.h>
 #include <NfcAccessControl.h>
 
@@ -26,7 +26,7 @@
 /*****************************************************************************
 * External libraries
 ******************************************************************************/
-Adafruit_NFCShield_I2C nfc(IRQ, RESET);
+Adafruit_PN532 nfc(IRQ, RESET);
 NfcAccessControl access;
 
 /*****************************************************************************
@@ -53,6 +53,8 @@ int mode = 100;             // Starting in normal mode
 void setup() {
 
 	Serial.begin(9600);
+	// while the serial stream is not open, do nothing:
+	while (!Serial) ;
 
 	nfc.begin();
 
@@ -207,7 +209,7 @@ void init_normal() {
 	Serial.print(" allowed TAGs.");
 	Serial.println("");
 
-	Serial.println("Waiting for TAG:");
+	Serial.println("Waiting...");
 }
 
 void mode_normal() {
@@ -301,7 +303,7 @@ void init_learn() {
 		Serial.print("UID: "); Serial.println(suid);
 		Serial.println("Learning...");
 	} else {
-		Serial.println("Allowed TAGs limit reached.");
+		Serial.println("Limit reached.");
 		mode = INIT_NORMAL; // Vuelve a modo normal
 	}
 }
@@ -319,7 +321,7 @@ void mode_learn() {
 					access.addUid(uid);
 
 					strncpy(suid, uid, UID_LENGTH);
-					Serial.println("Added TAG!");
+					Serial.println("Added!");
 					Serial.print("UID: "); Serial.println(suid);
 
 					digitalWrite(redLed, HIGH);
@@ -378,7 +380,7 @@ void mode_clear() {
 		if (readUid(&puid_aux) > 0) {
 
 			if (!strncmp(uid, uid_aux, UID_LENGTH)) {
-				Serial.println("Clearing allowed TAGs...");
+				Serial.println("Clearing...");
 				access.clearUids();
 			} else {
 				Serial.println("Canceled!");
@@ -415,7 +417,7 @@ void mode_clear_feedback() {
 void success() {
 
 	Serial.println("");
-	Serial.println("--------- WELCOME! ---------");
+	Serial.println("WELCOME!");
 	Serial.println("");
 
 	digitalWrite(greenLed, LOW);
@@ -428,7 +430,7 @@ void success() {
 void fail() {
 
 	Serial.println("");
-	Serial.println("!!!!!! ACCESS DENIED! !!!!!!");
+	Serial.println("ACCESS DENIED!");
 	Serial.println("");
 
 	digitalWrite(redLed, LOW);
