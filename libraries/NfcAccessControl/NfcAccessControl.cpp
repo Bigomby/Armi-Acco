@@ -14,10 +14,9 @@ void NfcAccessControl::init(uint8_t auth_mode) {
 		break;
 	}
 	case REMOTE_XBEE_AUTH: {
-		SoftSerial = new SoftwareSerial(8, 9);
-		SoftSerial->begin(9600);
+		Serial1.begin(9600);
 		xbee = XBee();
-		xbee.setSerial(*SoftSerial);
+		xbee.setSerial(Serial1);
 		//coap_setup();
 		//endpoint_setup();
 		break;
@@ -148,6 +147,10 @@ uint8_t NfcAccessControl::remoteXbeeAuth(char *uid) {
 	// XBEE
 	XBeeAddress64 addr64 = XBeeAddress64(0x0013A200, 0x40B96ED1);
 	ZBTxStatusResponse txStatus = ZBTxStatusResponse();
+	char resource[] = "auth";
+	char query[24] = "uid";
+	strncat(query, uid, UID_LENGTH + 1);
+	size_t query_len = sizeof(query) + UID_LENGTH;
 
 	// CoaP
 	uint8_t packetbuf[24];
@@ -157,25 +160,40 @@ uint8_t NfcAccessControl::remoteXbeeAuth(char *uid) {
 
 	if (packetbuf != NULL) {
 
+		// Header
 		req.hdr.ver = 0x01;
 		req.hdr.t = COAP_TYPE_NONCON;
 		req.hdr.tkl = 0x00;
-		req.hdr.code = COAP_METHOD_POST;
+		req.hdr.code = COAP_METHOD_GET;
 		req.hdr.id[0] = 0x00;
 		req.hdr.id[1] = 0x00;
 
-		req.payload.len = UID_LENGTH;
-		const uint8_t *payload = (uint8_t*) uid;
-		req.payload.p = payload;
+		// Token
 		req.tok.len = 0x00;
-		req.numopts = 0x00;
+
+		// Options
+		req.numopts = 2;
+
+		req.opts[0].num = 11; // URI-PATH
+		req.opts[0].buf.p = (uint8_t*)resource;
+		req.opts[0].buf.len = sizeof(resource);
+
+		req.opts[1].num = 15; // URI-QUERY
+		req.opts[1].buf.p = (uint8_t*)query;
+		req.opts[1].buf.len = query_len;
+
+		// Payload
+		req.payload.len = 0;
 
 		if (0 != (rc = coap_build(packetbuf, &rsplen, &req))) {
 			Serial.print("rc=");
 			Serial.println(rc, DEC);
 		} else {
 			ZBTxRequest zbTx = ZBTxRequest(addr64, packetbuf, rsplen);
-			Serial.println("Sending...");
+			Serial.print("rc=");
+			Serial.println(rc, DEC);
+			//coap_dump(packetbuf, rsplen, true);
+
 			xbee.send(zbTx);
 
 			if (xbee.readPacket(100)) {
@@ -184,7 +202,7 @@ uint8_t NfcAccessControl::remoteXbeeAuth(char *uid) {
 					xbee.getResponse().getZBTxStatusResponse(txStatus);
 
 					if (txStatus.getDeliveryStatus() == SUCCESS) {
-						Serial.println("Success");
+						Serial.println("Sent");
 
 					} else {
 						Serial.println("Error");
@@ -192,7 +210,6 @@ uint8_t NfcAccessControl::remoteXbeeAuth(char *uid) {
 					}
 				}
 			} else if (xbee.getResponse().isError()) {
-				Serial.print("Error code: ");
 				Serial.println(xbee.getResponse().getErrorCode());
 			} else {
 				Serial.println("Local error");
