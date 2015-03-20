@@ -148,15 +148,19 @@ uint8_t NfcAccessControl::remoteXbeeAuth(char *uid) {
 	XBeeAddress64 addr64 = XBeeAddress64(0x0013A200, 0x40B96ED1);
 	ZBTxStatusResponse txStatus = ZBTxStatusResponse();
 	char resource[] = "auth";
-	char query[24] = "uid";
-	strncat(query, uid, UID_LENGTH + 1);
-	size_t query_len = sizeof(query) + UID_LENGTH;
+	char aux_query[] = "uid=";
+	char * query = (char*) calloc(sizeof(aux_query) + sizeof(uid) + 1 , sizeof(char*));
+
+	strncat(query, aux_query, 4);
+	strncat(query, uid, UID_LENGTH);
+	size_t query_len = 4 + UID_LENGTH;
 
 	// CoaP
 	uint8_t packetbuf[24];
 	size_t rsplen = sizeof(packetbuf);
 	int rc;
 	coap_packet_t req;
+	uint8_t ret = UNAUTHORIZED;
 
 	if (packetbuf != NULL) {
 
@@ -203,12 +207,16 @@ uint8_t NfcAccessControl::remoteXbeeAuth(char *uid) {
 
 					if (txStatus.getDeliveryStatus() == SUCCESS) {
 						Serial.println("Sent");
-
-					} else {
-						Serial.println("Error");
-
+						int code = recvpacket();
+						if (code == 0x43) {
+							ret = AUTHORIZED;
+						}
 					}
+
+				} else {
+					Serial.println("Error");
 				}
+
 			} else if (xbee.getResponse().isError()) {
 				Serial.println(xbee.getResponse().getErrorCode());
 			} else {
@@ -219,7 +227,7 @@ uint8_t NfcAccessControl::remoteXbeeAuth(char *uid) {
 		memErr();
 	}
 
-	return 0;
+	return ret;
 }
 
 uint8_t NfcAccessControl::remoteWifiAuth(char *uid) {
@@ -229,4 +237,88 @@ uint8_t NfcAccessControl::remoteWifiAuth(char *uid) {
 
 uint8_t NfcAccessControl::memErr() {
 	Serial.println("Memmory error");
+}
+
+uint8_t NfcAccessControl::recvpacket() {
+
+	ZBRxResponse rx = ZBRxResponse();
+	ModemStatusResponse msr = ModemStatusResponse();
+	coap_packet_t resp;
+	uint8_t buff[24];
+
+	xbee.readPacket(1000);
+
+	uint8_t ret = 0;
+
+	if (xbee.getResponse().isAvailable()) {
+		// got something
+
+		if (xbee.getResponse().getApiId() == ZB_RX_RESPONSE) {
+			// got a zb rx packet
+
+			// now fill our zb rx class
+			xbee.getResponse().getZBRxResponse(rx);
+
+			if (rx.getOption() == ZB_PACKET_ACKNOWLEDGED) {
+				// the sender got an ACK
+				Serial.println("the sender got an ACK");
+			} else {
+				// we got it (obviously) but sender didn't get an ACK
+				Serial.println("the sender didn't get an ACK");
+			}
+
+			Serial.print("checksum is ");
+			Serial.println(rx.getChecksum(), HEX);
+
+			Serial.print("packet length is ");
+			Serial.println(rx.getPacketLength(), DEC);
+
+			for (int i = 0; i < rx.getDataLength(); i++) {
+				Serial.print("payload [");
+				Serial.print(i, DEC);
+				Serial.print("] is ");
+				Serial.println(rx.getData()[i], HEX);
+				buff[i] = rx.getData(i);
+			}
+			int rc;
+			uint8_t len = rx.getDataLength();
+			if (0 != (rc = coap_parse(&resp, buff, len)))
+			{
+				Serial.print("Bad packet rc=");
+				Serial.println(rc, DEC);
+			}
+			else
+			{
+				coap_dumpPacket(&resp);
+				uint16_t clas = resp.hdr.code;
+				uint16_t det = resp.hdr.code;
+				clas = (clas & 0xF0) >> 5;
+				det = det & 0x0F;
+				Serial.print(clas); Serial.print("."); Serial.println(det);
+				ret = resp.hdr.code;
+			}
+		} else if (xbee.getResponse().getApiId() == MODEM_STATUS_RESPONSE) {
+			xbee.getResponse().getModemStatusResponse(msr);
+			// the local XBee sends this response on certain events, like association/dissociation
+
+			if (msr.getStatus() == ASSOCIATED) {
+				// yay this is great.  flash led
+				Serial.println("Associated");
+			} else if (msr.getStatus() == DISASSOCIATED) {
+				// this is awful.. flash led to show our discontent
+				Serial.println("Dissasociated");
+			} else {
+				// another status
+				Serial.println("Status");
+			}
+		} else {
+			// not something we were expecting
+			Serial.println("not something we were expecting");
+		}
+	} else if (xbee.getResponse().isError()) {
+		Serial.print("Error reading packet.  Error code: ");
+		Serial.println(xbee.getResponse().getErrorCode());
+	}
+
+	return ret;
 }

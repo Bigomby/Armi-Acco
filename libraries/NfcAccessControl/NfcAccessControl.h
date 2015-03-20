@@ -41,6 +41,7 @@ private:
 	uint8_t remoteWifiAuth(char *uid);
 	void loadUids();
 	uint8_t memErr();
+	uint8_t recvpacket();
 };
 
 #endif
