@@ -1,15 +1,14 @@
+#include <Adafruit_PN532.h>
 #include <coap.h>
 #include <SoftwareSerial.h>
 #include <XBee.h>
 #include <EEPROM.h>
-#include <Adafruit_PN532.h>
 #include <Wire.h>
 #include <NfcAccessControl.h>
+#include <SPI.h>
 
-#define IRQ     (2)
-#define RESET   (3)
-#define SRX     (8)
-#define STX     (9)
+#define PN532_IRQ   (2)
+#define PN532_RESET (3)
 
 #define INIT_NORMAL     100
 #define NORMAL          101
@@ -26,7 +25,7 @@
 /*****************************************************************************
 * External libraries
 ******************************************************************************/
-Adafruit_PN532 nfc(IRQ, RESET);
+Adafruit_PN532 nfc(PN532_IRQ, PN532_RESET);
 NfcAccessControl access;
 
 /*****************************************************************************
@@ -53,8 +52,6 @@ int mode = 100;             // Starting in normal mode
 void setup() {
 
 	Serial.begin(9600);
-	// while the serial stream is not open, do nothing:
-	while (!Serial) ;
 
 	nfc.begin();
 
