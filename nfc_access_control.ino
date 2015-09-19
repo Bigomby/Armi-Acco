@@ -1,3 +1,26 @@
+/*******************************************************************************
+ * The MIT License (MIT)
+ * Copyright (c) 2015 Diego Fernández Barrera (bigomby@gmail.com)
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ ******************************************************************************/
+
 #include <EEPROM.h>
 #include <Adafruit_NFCShield_I2C.h>
 #include <Wire.h>
@@ -23,7 +46,7 @@
 /*****************************************************************************
 * External libraries
 ******************************************************************************/
-Adafruit_NFCShield_I2C nfc(IRQ, RESET);
+Adafruit_NFCShield_I2C nfc (IRQ, RESET);
 NfcAccessControl access;
 
 /*****************************************************************************
@@ -49,30 +72,30 @@ int mode = 100;             // Starting in normal mode
 ******************************************************************************/
 void setup() {
 
-	Serial.begin(9600);
+	Serial.begin (9600);
 
 	nfc.begin();
 
 	uint32_t versiondata = nfc.getFirmwareVersion();
 	if (! versiondata) {
-		Serial.print("NFC Reader not found");
+		Serial.print ("NFC Reader not found");
 	}
 
-	Serial.print("Found PN5"); Serial.println((versiondata >> 24) & 0xFF, HEX);
-	Serial.print("Firmware ver. "); Serial.print((versiondata >> 16) & 0xFF, DEC);
-	Serial.print('.'); Serial.println((versiondata >> 8) & 0xFF, DEC);
+	Serial.print ("Found PN5"); Serial.println ((versiondata >> 24) & 0xFF, HEX);
+	Serial.print ("Firmware ver. "); Serial.print ((versiondata >> 16) & 0xFF, DEC);
+	Serial.print ('.'); Serial.println ((versiondata >> 8) & 0xFF, DEC);
 
-	nfc.setPassiveActivationRetries(1);
+	nfc.setPassiveActivationRetries (1);
 
 	nfc.SAMConfig();
 
-	pinMode(11, OUTPUT);
-	pinMode(12, OUTPUT);
-	pinMode(13, OUTPUT);
+	pinMode (11, OUTPUT);
+	pinMode (12, OUTPUT);
+	pinMode (13, OUTPUT);
 
-	digitalWrite(11, HIGH);
-	digitalWrite(12, HIGH);
-	digitalWrite(13, HIGH);
+	digitalWrite (11, HIGH);
+	digitalWrite (12, HIGH);
+	digitalWrite (13, HIGH);
 }
 
 /*****************************************************************************
@@ -119,7 +142,7 @@ void loop() {
 /*****************************************************************************
  * Function that handles the reading from the NFC READER
  *****************************************************************************/
-uint8_t readUid(char **r_uid) {
+uint8_t readUid (char **r_uid) {
 
 	boolean success;
 	uint8_t uidLength;
@@ -131,31 +154,32 @@ uint8_t readUid(char **r_uid) {
 	if (r_uid != NULL) {
 
 		if (millis() - readMillis > READ_INTERVAL) {
-			buff = (uint8_t *) calloc(UID_LENGTH, sizeof(uint8_t));
-			success = nfc.readPassiveTargetID(PN532_MIFARE_ISO14443A, &buff[0], &uidLength);
+			buff = (uint8_t *) calloc (UID_LENGTH, sizeof (uint8_t));
+			success = nfc.readPassiveTargetID (PN532_MIFARE_ISO14443A, &buff[0],
+			                                   &uidLength);
 
 			if (success && uidLength == UID_BYTES) {
-				uid_byte = (char *) calloc(4, sizeof(char));
-				tmp_uid = (char *) calloc(12, sizeof(char));
+				uid_byte = (char *) calloc (4, sizeof (char));
+				tmp_uid = (char *) calloc (12, sizeof (char));
 
 				for (uint8_t i = 0 ; i < 4 ; i++) {
-					snprintf(uid_byte, 3 , "%02X", buff[i]);
-					strncat(tmp_uid, uid_byte, 2);
+					snprintf (uid_byte, 3 , "%02X", buff[i]);
+					strncat (tmp_uid, uid_byte, 2);
 				}
 
-				strncpy(*r_uid, tmp_uid, UID_LENGTH);
-				free(uid_byte);
-				free(tmp_uid);
+				strncpy (*r_uid, tmp_uid, UID_LENGTH);
+				free (uid_byte);
+				free (tmp_uid);
 				ret = 1;
 				readMillis = millis();
 			} else {
 				ret = 0;
 			}
 
-			free(buff);
+			free (buff);
 		}
 	} else {
-		Serial.println("memory error at readUid()");
+		Serial.println ("memory error at readUid()");
 		mode = INIT_NORMAL;
 	}
 
@@ -167,7 +191,7 @@ uint8_t readUid(char **r_uid) {
  *****************************************************************************/
 void checkUid() {
 
-	switch (access.checkUid(uid)) {
+	switch (access.checkUid (uid)) {
 	case UNAUTHORIZED:
 		fail();
 		break;
@@ -193,28 +217,28 @@ void checkUid() {
 void init_normal() {
 
 	// Turn off all the LEDs and Buzzer
-	digitalWrite(redLed, HIGH);
-	digitalWrite(greenLed, HIGH);
-	digitalWrite(buzzer, HIGH);
+	digitalWrite (redLed, HIGH);
+	digitalWrite (greenLed, HIGH);
+	digitalWrite (buzzer, HIGH);
 
-	Serial.print("There are ");
-	Serial.print(access.getAllowedTagsCount());
-	Serial.print(" allowed TAGs.");
-	Serial.println("");
+	Serial.print ("There are ");
+	Serial.print (access.getAllowedTagsCount());
+	Serial.print (" allowed TAGs.");
+	Serial.println ("");
 
-	Serial.println("Waiting for TAG:");
+	Serial.println ("Waiting for TAG:");
 }
 
 void mode_normal() {
 
 	if (puid != NULL) {
-		if (readUid(&puid) > 0) {
-			strncpy(suid, uid, UID_LENGTH);
-			Serial.print("UID: "); Serial.println(suid);
+		if (readUid (&puid) > 0) {
+			strncpy (suid, uid, UID_LENGTH);
+			Serial.print ("UID: "); Serial.println (suid);
 			checkUid();
 		}
 	} else {
-		Serial.println("memory error at mode_normal()");
+		Serial.println ("memory error at mode_normal()");
 		mode = INIT_NORMAL;
 	}
 }
@@ -230,15 +254,16 @@ void init_master() {
 
 	uint8_t allowed_tags_count = access.getAllowedTagsCount();
 
-	Serial.println("MODE: MASTER");
-	Serial.println("");
+	Serial.println ("MODE: MASTER");
+	Serial.println ("");
 
-	Serial.print("There are "); Serial.print(allowed_tags_count); Serial.print(" allowed TAGs.");
-	Serial.println("");
+	Serial.print ("There are "); Serial.print (allowed_tags_count);
+	Serial.print (" allowed TAGs.");
+	Serial.println ("");
 
 	for (uint8_t i = 0 ; i < allowed_tags_count ; i++) {
-		strncpy(suid, access.getUid(i), UID_LENGTH);
-		Serial.println(suid);
+		strncpy (suid, access.getUid (i), UID_LENGTH);
+		Serial.println (suid);
 	}
 }
 
@@ -246,9 +271,9 @@ void mode_master() {
 
 	if (uid != NULL) {
 
-		if (readUid(&puid) > 0) {
+		if (readUid (&puid) > 0) {
 
-			switch (access.checkUid(uid)) {
+			switch (access.checkUid (uid)) {
 
 			case UNAUTHORIZED:
 				mode = INIT_LEARN;
@@ -263,7 +288,7 @@ void mode_master() {
 			}
 		}
 	} else {
-		Serial.println("memory error at mode_master()");
+		Serial.println ("memory error at mode_master()");
 		mode = INIT_NORMAL;
 	}
 }
@@ -271,13 +296,13 @@ void mode_master() {
 void mode_master_feedback() {
 
 	if (millis () - feedbackMillis > 0 && millis() - feedbackMillis < 250) {
-		digitalWrite(greenLed, HIGH);
-		digitalWrite(redLed, HIGH);
+		digitalWrite (greenLed, HIGH);
+		digitalWrite (redLed, HIGH);
 	}
 
 	if (millis () - feedbackMillis > 250 && millis() - feedbackMillis < 500) {
-		digitalWrite(greenLed, LOW);
-		digitalWrite(redLed, LOW);
+		digitalWrite (greenLed, LOW);
+		digitalWrite (redLed, LOW);
 	}
 
 	if (millis() - feedbackMillis > 500) {
@@ -292,11 +317,11 @@ void mode_master_feedback() {
 void init_learn() {
 
 	if (access.getAllowedTagsCount() < MAX_AUTHORIZED_TAGS) {
-		strncpy(suid, uid, UID_LENGTH);
-		Serial.print("UID: "); Serial.println(suid);
-		Serial.println("Put this TAG again to add to the allowed TAGs list");
+		strncpy (suid, uid, UID_LENGTH);
+		Serial.print ("UID: "); Serial.println (suid);
+		Serial.println ("Put this TAG again to add to the allowed TAGs list");
 	} else {
-		Serial.println("Allowed TAGs limit reached.");
+		Serial.println ("Allowed TAGs limit reached.");
 		mode = INIT_NORMAL; // Vuelve a modo normal
 	}
 }
@@ -305,38 +330,38 @@ void mode_learn() {
 
 	if (puid != NULL && puid_aux != NULL) {
 
-		if (readUid(&puid_aux) > 0) {
+		if (readUid (&puid_aux) > 0) {
 
 			if ( puid_aux != NULL ) {
 
-				if (!strncmp(uid, uid_aux, UID_LENGTH)) {
+				if (!strncmp (uid, uid_aux, UID_LENGTH)) {
 
-					access.addUid(uid);
+					access.addUid (uid);
 
-					strncpy(suid, uid, UID_LENGTH);
-					Serial.println("Added TAG!");
-					Serial.print("UID: "); Serial.println(suid);
+					strncpy (suid, uid, UID_LENGTH);
+					Serial.println ("Added TAG!");
+					Serial.print ("UID: "); Serial.println (suid);
 
-					digitalWrite(redLed, HIGH);
-					digitalWrite(greenLed, LOW);
-					digitalWrite(buzzer, LOW);
-					delay(500);
+					digitalWrite (redLed, HIGH);
+					digitalWrite (greenLed, LOW);
+					digitalWrite (buzzer, LOW);
+					delay (500);
 				} else {
-					Serial.println("Canceled!");
+					Serial.println ("Canceled!");
 
-					digitalWrite(redLed, LOW);
-					digitalWrite(greenLed, HIGH);
-					digitalWrite(buzzer, LOW);
-					delay(500);
+					digitalWrite (redLed, LOW);
+					digitalWrite (greenLed, HIGH);
+					digitalWrite (buzzer, LOW);
+					delay (500);
 				}
 				mode = INIT_NORMAL;
 			} else {
-				Serial.println("memory error at mode_learn()");
+				Serial.println ("memory error at mode_learn()");
 				mode = INIT_NORMAL;
 			}
 		}
 	}  else {
-		Serial.println("memory error at mode_learn()");
+		Serial.println ("memory error at mode_learn()");
 		mode = INIT_NORMAL;
 	}
 }
@@ -344,13 +369,13 @@ void mode_learn() {
 void mode_learn_feedback() {
 
 	if (millis () - feedbackMillis > 0 && millis() - feedbackMillis < 250) {
-		digitalWrite(greenLed, LOW);
-		digitalWrite(redLed, HIGH);
+		digitalWrite (greenLed, LOW);
+		digitalWrite (redLed, HIGH);
 	}
 
 	if (millis () - feedbackMillis > 250 && millis() - feedbackMillis < 500) {
-		digitalWrite(greenLed, LOW);
-		digitalWrite(redLed, LOW);
+		digitalWrite (greenLed, LOW);
+		digitalWrite (redLed, LOW);
 	}
 
 	if (millis() - feedbackMillis > 500) {
@@ -363,25 +388,25 @@ void mode_learn_feedback() {
  *****************************************************************************/
 
 void init_clear() {
-	Serial.println("Put the MASTER TAG again to clear the allowed TAGs list.");
+	Serial.println ("Put the MASTER TAG again to clear the allowed TAGs list.");
 }
 
 void mode_clear() {
 
 	if (puid != NULL && puid_aux != NULL) {
 
-		if (readUid(&puid_aux) > 0) {
+		if (readUid (&puid_aux) > 0) {
 
-			if (!strncmp(uid, uid_aux, UID_LENGTH)) {
-				Serial.println("Clearing allowed TAGs...");
+			if (!strncmp (uid, uid_aux, UID_LENGTH)) {
+				Serial.println ("Clearing allowed TAGs...");
 				access.clearUids();
 			} else {
-				Serial.println("Canceled!");
+				Serial.println ("Canceled!");
 			}
 			mode = INIT_NORMAL;
 		}
 	} else {
-		Serial.println("memory error at mode_clear()");
+		Serial.println ("memory error at mode_clear()");
 		mode = INIT_NORMAL;
 	}
 }
@@ -389,13 +414,13 @@ void mode_clear() {
 void mode_clear_feedback() {
 
 	if (millis () - feedbackMillis > 0 && millis() - feedbackMillis < 500) {
-		digitalWrite(greenLed, HIGH);
-		digitalWrite(redLed, HIGH);
+		digitalWrite (greenLed, HIGH);
+		digitalWrite (redLed, HIGH);
 	}
 
 	if (millis () - feedbackMillis > 500 && millis() - feedbackMillis < 1000) {
-		digitalWrite(greenLed, HIGH);
-		digitalWrite(redLed, LOW);
+		digitalWrite (greenLed, HIGH);
+		digitalWrite (redLed, LOW);
 	}
 
 	if (millis() - feedbackMillis > 1000) {
@@ -409,42 +434,42 @@ void mode_clear_feedback() {
 
 void success() {
 
-	Serial.println("");
-	Serial.println("--------- WELCOME! ---------");
-	Serial.println("");
+	Serial.println ("");
+	Serial.println ("--------- WELCOME! ---------");
+	Serial.println ("");
 
-	digitalWrite(greenLed, LOW);
-	digitalWrite(buzzer, LOW);
-	delay(750);
-	digitalWrite(greenLed, HIGH);
-	digitalWrite(buzzer, HIGH);
+	digitalWrite (greenLed, LOW);
+	digitalWrite (buzzer, LOW);
+	delay (750);
+	digitalWrite (greenLed, HIGH);
+	digitalWrite (buzzer, HIGH);
 }
 
 void fail() {
 
-	Serial.println("");
-	Serial.println("!!!!!! ACCESS DENIED! !!!!!!");
-	Serial.println("");
+	Serial.println ("");
+	Serial.println ("!!!!!! ACCESS DENIED! !!!!!!");
+	Serial.println ("");
 
-	digitalWrite(redLed, LOW);
-	digitalWrite(buzzer, LOW);
-	delay(100);
-	digitalWrite(redLed, HIGH);
-	digitalWrite(buzzer, HIGH);
-
-	delay (75);
-
-	digitalWrite(redLed, LOW);
-	digitalWrite(buzzer, LOW);
-	delay(100);
-	digitalWrite(redLed, HIGH);
-	digitalWrite(buzzer, HIGH);
+	digitalWrite (redLed, LOW);
+	digitalWrite (buzzer, LOW);
+	delay (100);
+	digitalWrite (redLed, HIGH);
+	digitalWrite (buzzer, HIGH);
 
 	delay (75);
 
-	digitalWrite(redLed, LOW);
-	digitalWrite(buzzer, LOW);
-	delay(100);
-	digitalWrite(redLed, HIGH);
-	digitalWrite(buzzer, HIGH);
+	digitalWrite (redLed, LOW);
+	digitalWrite (buzzer, LOW);
+	delay (100);
+	digitalWrite (redLed, HIGH);
+	digitalWrite (buzzer, HIGH);
+
+	delay (75);
+
+	digitalWrite (redLed, LOW);
+	digitalWrite (buzzer, LOW);
+	delay (100);
+	digitalWrite (redLed, HIGH);
+	digitalWrite (buzzer, HIGH);
 }
